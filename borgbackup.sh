@@ -26,8 +26,8 @@ log_info() {
 # Backup repositories and directories with multiple source paths
 BACKUPS=(
     # Format: "REPOSITORY PATH1 PATH2 PATH3 ..."
-    "homelab@maxServer002:/mnt/backup/docker /var/lib/docker /etc/docker"
-    "homelab@maxServer002:/mnt/backup/system /etc /var/log"
+    "user@backupserver:/mnt/backup/docker /var/lib/docker /etc/docker"
+    "user@backupserver:/mnt/backup/system /etc /var/log"
 )
 
 # Lock the script to prevent parallel execution
