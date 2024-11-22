@@ -12,6 +12,13 @@ LOCKFILE="/var/run/borg_backup.lock"
 # Minimum free space in gigabytes (adjust as needed)
 MIN_FREE_SPACE_GB=10
 
+# Excluded paths (relative to each backup source path)
+EXCLUDE_PATHS=(
+    "/path/to/exclude/dir1"
+    "/path/to/exclude/file1"
+    "/path/to/exclude/dir2"
+)
+
 # Enable debug mode (show all commands before execution)
 set -x
 
@@ -73,9 +80,15 @@ for backup in "${BACKUPS[@]}"; do
     # Debug: Start backup
     log_info "Starting backup for repository: $REPO with paths: $PATHS"
 
-    # Create backup
+    # Build the exclude arguments
+    EXCLUDE_ARGS=""
+    for exclude in "${EXCLUDE_PATHS[@]}"; do
+        EXCLUDE_ARGS="$EXCLUDE_ARGS --exclude $exclude"
+    done
+
+    # Create backup with exclusions
     borg create --progress --stats --compression lz4 \
-        "$REPO::${SNAPSHOT_NAME}" $PATHS 2>>"$LOGFILE" || error_exit "Backup failed for $REPO"
+        $EXCLUDE_ARGS "$REPO::${SNAPSHOT_NAME}" $PATHS 2>>"$LOGFILE" || error_exit "Backup failed for $REPO"
 
     # Debug: Start prune
     log_info "Starting prune for repository: $REPO"
