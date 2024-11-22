@@ -9,6 +9,9 @@ LOGFILE="/var/log/borg_backup.log"
 # Lock file for flock
 LOCKFILE="/var/run/borg_backup.lock"
 
+# Minimum free space in gigabytes (adjust as needed)
+MIN_FREE_SPACE_GB=10
+
 # Enable debug mode (show all commands before execution)
 set -x
 
@@ -23,11 +26,28 @@ log_info() {
     echo "[$(date)] $1" | tee -a "$LOGFILE"
 }
 
+# Function: Check free space on the backup repository
+check_free_space() {
+    local repo_host=$1
+    local repo_path=$2
+
+    # Use SSH to query free space on the backup system
+    local free_space=$(ssh "$repo_host" "df -BG \"$repo_path\" | awk 'NR==2 {print \$4}' | tr -d 'G'")
+    if [ -z "$free_space" ]; then
+        error_exit "Failed to check free space on $repo_host:$repo_path"
+    fi
+
+    log_info "Free space on $repo_host:$repo_path: ${free_space}GB"
+    if (( free_space < MIN_FREE_SPACE_GB )); then
+        error_exit "Not enough free space on $repo_host:$repo_path (required: ${MIN_FREE_SPACE_GB}GB, available: ${free_space}GB)"
+    fi
+}
+
 # Backup repositories and directories with multiple source paths
 BACKUPS=(
     # Format: "REPOSITORY PATH1 PATH2 PATH3 ..."
-    "user@backupserver:/mnt/backup/docker /var/lib/docker /etc/docker"
-    "user@backupserver:/mnt/backup/system /etc /var/log"
+    "backup@Server:/mnt/backup/docker /var/lib/docker /etc/docker"
+    "backup@Server:/mnt/backup/system /etc /var/log"
 )
 
 # Lock the script to prevent parallel execution
@@ -39,6 +59,13 @@ for backup in "${BACKUPS[@]}"; do
     # Extract repository and source paths
     REPO=$(echo "$backup" | awk '{print $1}')
     PATHS=$(echo "$backup" | cut -d' ' -f2-)
+
+    # Parse repository for host and path
+    REPO_HOST=$(echo "$REPO" | cut -d':' -f1)
+    REPO_PATH=$(echo "$REPO" | cut -d':' -f2)
+
+    # Check free space before starting backup
+    check_free_space "$REPO_HOST" "$REPO_PATH"
 
     # Generate snapshot name (date for all paths in the same repository)
     SNAPSHOT_NAME=$(basename "$REPO")-$(date +%Y-%m-%d)
